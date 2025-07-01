@@ -24,7 +24,7 @@ from pathlib import Path
 def main():
     """Main application entry point"""
     
-    print("🚀 RAG Ingestion Pipeline")
+    print("🚀 RAG Pipeline")
     print("=" * 50)
     
     # Check if .env file exists

@@ -64,11 +64,23 @@ class GeminiEmbedder(Embedder):
         return self._dimension
 
 
-def get_embedder() -> Embedder:
-    """Factory function to get the appropriate embedder based on config"""
-    if EMBEDDING_PROVIDER == "openai":
+def get_embedder(provider: str = None) -> Embedder:
+    """Factory function to get the appropriate embedder based on config or provider argument"""
+    # Use provided provider or fall back to config
+    embedding_provider = provider if provider is not None else EMBEDDING_PROVIDER
+    
+    # Handle "auto" provider selection
+    if embedding_provider == "auto":
+        if OPENAI_API_KEY:
+            embedding_provider = "openai"
+        elif GEMINI_API_KEY:
+            embedding_provider = "gemini"
+        else:
+            raise ValueError("No API keys found for automatic provider selection")
+    
+    if embedding_provider == "openai":
         return OpenAIEmbedder()
-    elif EMBEDDING_PROVIDER == "gemini":
+    elif embedding_provider == "gemini":
         return GeminiEmbedder()
     else:
-        raise ValueError(f"Invalid embedding provider: {EMBEDDING_PROVIDER}")
+        raise ValueError(f"Invalid embedding provider: {embedding_provider}")

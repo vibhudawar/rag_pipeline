@@ -84,6 +84,8 @@ class RAGPipeline:
                 embedder=self.embedder,
                 top_k=self.vector_top_k
             )
+
+            print(f"🔍 Vector docs: {vector_docs}")
             
             # Add source metadata
             for doc in vector_docs:

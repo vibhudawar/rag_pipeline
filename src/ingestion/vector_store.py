@@ -41,6 +41,12 @@ class VectorStore(ABC):
     def add_documents(self, index_name: str, documents: List[Dict[str, Any]], embedder) -> None:
         """Add documents to the vector store using embedder"""
         pass
+    
+    @abstractmethod
+    def similarity_search(self, index_name: str, query: str, embedder, top_k: int = 10, 
+                         filter_dict: Optional[Dict] = None) -> List[Document]:
+        """Perform similarity search and return Document objects"""
+        pass
 
 
 class PineconeVectorStore(VectorStore):
@@ -74,6 +80,7 @@ class PineconeVectorStore(VectorStore):
                 index_name=index_name,
                 embedding=embedder.embeddings  # Use the LangChain embeddings object
             )
+        print(f"🔍 Langchain stores: {self._langchain_stores[index_name]}")
         return self._langchain_stores[index_name]
     
     def add_documents(self, index_name: str, documents: List[Dict[str, Any]], embedder) -> None:
@@ -146,10 +153,11 @@ class PineconeVectorStore(VectorStore):
             raise RuntimeError(f"Failed to query Pinecone index: {str(e)}")
     
     def similarity_search(self, index_name: str, query: str, embedder, top_k: int = 10, 
-                         filter_dict: Optional[Dict] = None) -> List[Dict[str, Any]]:
+                         filter_dict: Optional[Dict] = None) -> List[Document]:
         """Perform similarity search using LangChain integration"""
         try:
             vector_store = self._get_langchain_store(index_name, embedder)
+            print(f"🔍 Vector store2: {vector_store.__dict__}")
             
             # Perform similarity search
             results = vector_store.similarity_search_with_score(
@@ -157,17 +165,21 @@ class PineconeVectorStore(VectorStore):
                 k=top_k,
                 filter=filter_dict
             )
+            # print(f"🔍 Results: {results}")
             
-            # Convert to our standard format
-            formatted_results = []
+            # Convert to Document objects with score in metadata
+            documents = []
             for doc, score in results:
-                formatted_results.append({
-                    'text': doc.page_content,
-                    'metadata': doc.metadata,
-                    'score': score
-                })
+                # Create a new Document with the score added to metadata
+                new_doc = Document(
+                    page_content=doc.page_content,
+                    metadata={**doc.metadata, 'score': score}
+                )
+                documents.append(new_doc)
             
-            return formatted_results
+            print(f"🔍 Retrieved {len(documents)} Document objects")
+            
+            return documents
             
         except Exception as e:
             raise RuntimeError(f"Failed to perform similarity search: {str(e)}")

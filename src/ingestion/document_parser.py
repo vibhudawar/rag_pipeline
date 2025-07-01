@@ -32,7 +32,6 @@ class PDFParser(DocumentParser):
                     return {
                         'text': text.strip(),
                         'metadata': {
-                            'filename': os.path.basename(file_path_or_bytes),
                             'file_type': 'pdf',
                             'num_pages': len(pdf_reader.pages)
                         }
@@ -134,12 +133,12 @@ class DocumentParserFactory:
         return list(cls._parsers.keys())
 
 
-    def parse_document(file_path_or_bytes: Any, file_extension: str = None) -> Dict[str, Any]:
-        """Convenience function to parse any supported document"""
-        if file_extension is None and isinstance(file_path_or_bytes, (str, Path)):
-            file_extension = Path(file_path_or_bytes).suffix
-        elif file_extension is None:
-            raise ValueError("file_extension must be provided when using bytes input")
-        
-        parser = DocumentParserFactory.get_parser(file_extension)
-        return parser.parse(file_path_or_bytes)
+def parse_document(file_path_or_bytes: Any, file_extension: str = None) -> Dict[str, Any]:
+    """Convenience function to parse any supported document"""
+    if file_extension is None and isinstance(file_path_or_bytes, (str, Path)):
+        file_extension = Path(file_path_or_bytes).suffix
+    elif file_extension is None:
+        raise ValueError("file_extension must be provided when using bytes input")
+    
+    parser = DocumentParserFactory.get_parser(file_extension)
+    return parser.parse(file_path_or_bytes)

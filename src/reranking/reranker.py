@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any
 from langchain_core.documents import Document
 from langchain_cohere import CohereRerank
+import pinecone
 import os
 
 
@@ -24,8 +25,7 @@ class CohereReranker(Reranker):
         
         self.reranker = CohereRerank(
                 cohere_api_key=cohere_api_key,
-                model=model,
-                top_k=10  # We'll limit this in the rerank method
+                model=model
             )
     
     def rerank(self, query: str, documents: List[Document], top_k: int = 5) -> List[Document]:

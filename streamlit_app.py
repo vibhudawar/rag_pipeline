@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Streamlit App for RAG Ingestion Pipeline Testing
+Streamlit App for RAG Pipeline Testing
 
 This app provides a user-friendly interface to:
 - Upload and ingest single documents
@@ -194,7 +194,8 @@ def single_document_upload(config: Dict[str, Any]):
         # Create additional metadata
         additional_metadata = {
             "uploaded_via": "streamlit",
-            "upload_timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+            "upload_timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "filename": uploaded_file.name
         }
         
         if category:
@@ -527,6 +528,7 @@ def search_and_test(config: Dict[str, Any]):
                 
                 # Get vector store and embedder
                 vector_store = get_vector_store()
+                print(f"🔍 Vector store1: {vector_store.__dict__}")
                 embedder = get_embedder()
                 
                 # Perform similarity search
@@ -537,9 +539,18 @@ def search_and_test(config: Dict[str, Any]):
                     top_k=top_k
                 )
                 
+                # Convert Document objects to dictionary format for display
+                formatted_results = []
+                for doc in results:
+                    formatted_results.append({
+                        'text': doc.page_content,
+                        'metadata': doc.metadata,
+                        'score': doc.metadata.get('score', 0.0)
+                    })
+                
                 # Display results
                 st.subheader("📄 Search Results")
-                display_search_results(results, query)
+                display_search_results(formatted_results, query)
                 
         except Exception as e:
             show_error_message(e, "Search failed")
@@ -857,7 +868,7 @@ def main():
     """Main application function"""
     
     # Title and description
-    st.title("📚 RAG Ingestion Pipeline")
+    st.title("📚 RAG Pipeline")
     st.markdown("**Upload, process, and test documents for your Retrieval-Augmented Generation system**")
     
     # Check environment first

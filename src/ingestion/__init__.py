@@ -67,6 +67,8 @@ class IngestionPipeline:
             # Add ingestion timestamp
             parsed_doc['metadata']['ingested_at'] = start_time.isoformat()
             
+            # print(f"🔍 Parsed document: {parsed_doc}")
+            
             # Step 2: Chunk the document
             print(f"✂️  Chunking document...")
             chunks = self.chunker.chunk_text(

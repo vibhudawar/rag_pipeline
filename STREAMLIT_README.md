@@ -1,4 +1,4 @@
-# 📚 RAG Ingestion Pipeline - Streamlit UI
+# 📚 RAG Pipeline - Streamlit UI
 
 A beautiful, interactive web interface for testing your RAG (Retrieval-Augmented Generation) ingestion pipeline. Upload documents, process them, and test retrieval - all through an intuitive web interface!
 

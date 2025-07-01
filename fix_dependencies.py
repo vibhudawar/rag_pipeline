@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Dependency Fix Script for RAG Ingestion Pipeline
+Dependency Fix Script for RAG Pipeline
 
 This script helps resolve common dependency conflicts and environment issues.
 """

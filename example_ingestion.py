@@ -249,7 +249,7 @@ def cleanup_example_files():
         print(f"🗑️  Removed directory {sample_dir}")
 
 if __name__ == "__main__":
-    print("🚀 RAG Ingestion Pipeline Examples")
+    print("🚀 RAG Pipeline Examples")
     print("Make sure your .env file is configured with API keys!")
     
     try:

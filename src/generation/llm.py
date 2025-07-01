@@ -22,7 +22,7 @@ class LLMGenerator(ABC):
 class OpenAIGenerator(LLMGenerator):
     """OpenAI LLM generator using LangChain"""
     
-    def __init__(self, model: str = "gpt-3.5-turbo", temperature: float = 0.0):
+    def __init__(self, model: str = "gpt-4o-mini", temperature: float = 0.0):
         if not OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
         
@@ -269,7 +269,7 @@ def get_llm_generator(provider: str = None, model: str = None, **kwargs) -> LLMG
     
     if provider == "openai":
         try:
-            model = model or "gpt-3.5-turbo"
+            model = model or "gpt-4o-mini"
             return OpenAIGenerator(model=model, **kwargs)
         except ValueError as e:
             print(f"⚠️ OpenAI generator not available: {str(e)}")
