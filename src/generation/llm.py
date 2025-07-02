@@ -125,7 +125,7 @@ Please provide a helpful and accurate answer based on the context above."""),
 class GeminiGenerator(LLMGenerator):
     """Google Gemini LLM generator using LangChain"""
     
-    def __init__(self, model: str = "gemini-pro", temperature: float = 0.0):
+    def __init__(self, model: str = "gemini-2.5-flash", temperature: float = 0.0):
         if not GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY not found in environment variables")
         
@@ -276,7 +276,7 @@ def get_llm_generator(provider: str = None, model: str = None, **kwargs) -> LLMG
     
     elif provider == "gemini":
         try:
-            model = model or "gemini-pro"
+            model = model or "gemini-2.5-flash"
             return GeminiGenerator(model=model, **kwargs)
         except ValueError as e:
             print(f"⚠️ Gemini generator not available: {str(e)}")
