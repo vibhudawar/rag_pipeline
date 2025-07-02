@@ -124,7 +124,7 @@ def get_processed_file_result(file_hash: str, config: Dict[str, Any]) -> Dict[st
 
 def check_environment():
     """Check if required environment variables are set"""
-    required_vars = ['OPENAI_API_KEY', 'PINECONE_API_KEY']
+    required_vars = ['GEMINI_API_KEY', 'PINECONE_API_KEY']
     missing_vars = []
     
     for var in required_vars:

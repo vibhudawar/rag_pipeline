@@ -2,8 +2,8 @@
 import os
 
 # SERVICE SELECTION
-EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "openai") # or "gemini"
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")           # or "gemini"
+EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "auto")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "auto") 
 
 # OpenAI specific
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
