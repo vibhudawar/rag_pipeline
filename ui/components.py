@@ -391,6 +391,20 @@ def display_rag_response(response: Dict[str, Any]):
     if sources:
         st.subheader("📚 Source Documents")
         
+        # Add styling for better scrollable display
+        st.markdown("""
+        <style>
+        .rag-source-container {
+            max-height: 500px;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Add scrollable container for sources
+        st.markdown('<div class="rag-source-container">', unsafe_allow_html=True)
+        
         for source in sources:
             with st.expander(f"#{source['rank']} {source['title']} ({source['retrieval_source']})"):
                 
@@ -400,18 +414,26 @@ def display_rag_response(response: Dict[str, Any]):
                 with col1:
                     st.text(f"Source: {source['source']}")
                     if source.get('url'):
-                        st.link_button("🔗 View Source", source['url'])
+                        st.link_button("🔗 View Source", source['url'], key=f"rag_source_link_{source['rank']}")
                 
                 with col2:
                     if source.get('rerank_score') is not None:
                         st.metric("Rerank Score", f"{source['rerank_score']:.4f}")
-                    
+                        
                     if source.get('similarity_score') is not None:
                         st.metric("Similarity", f"{source['similarity_score']:.4f}")
                 
-                # Content preview
+                # Content preview in scrollable text area
                 st.markdown("**Content Preview:**")
-                st.text(source['content_preview'])
+                st.text_area(
+                    label="",
+                    value=source['content_preview'],
+                    height=120,
+                    disabled=True,
+                    key=f"rag_source_content_{source['rank']}_{hash(source['content_preview'])}"
+                )
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def display_rag_batch_results(results: List[Dict[str, Any]]):
@@ -499,6 +521,14 @@ def create_rag_query_interface():
     with col2:
         st.markdown("**Options:**")
         
+        # New conversational option
+        enable_conversation = st.checkbox(
+            "Enable conversation memory",
+            value=False,
+            help="Remember conversation history and context",
+            key="rag_enable_conversation"
+        )
+        
         include_web_search = st.checkbox(
             "Include web search",
             value=True,
@@ -526,13 +556,50 @@ def create_rag_query_interface():
             help="Choose language model for generation",
             key="rag_llm_provider"
         )
+        
+        # Conversation settings (shown when conversation is enabled)
+        if enable_conversation:
+            st.markdown("**Conversation Settings:**")
+            
+            max_messages = st.slider(
+                "Max messages to remember",
+                min_value=4,
+                max_value=20,
+                value=10,
+                help="Maximum number of messages to keep in memory",
+                key="rag_max_messages"
+            )
+            
+            enable_summary = st.checkbox(
+                "Enable summary memory",
+                value=True,
+                help="Use summary for long conversations",
+                key="rag_enable_summary"
+            )
+            
+            summary_threshold = st.slider(
+                "Summary threshold",
+                min_value=4,
+                max_value=16,
+                value=8,
+                help="Number of messages before summarizing",
+                key="rag_summary_threshold"
+            )
+        else:
+            max_messages = 10
+            enable_summary = True
+            summary_threshold = 8
     
     return {
         'query': query,
+        'enable_conversation': enable_conversation,
         'include_web_search': include_web_search,
         'show_sources': show_sources,
         'reranker_provider': reranker_provider,
-        'llm_provider': llm_provider
+        'llm_provider': llm_provider,
+        'max_messages': max_messages,
+        'enable_summary': enable_summary,
+        'summary_threshold': summary_threshold
     }
 
 
@@ -626,3 +693,258 @@ def show_rag_pipeline_status(pipeline_info: Dict[str, Any]):
         
         with col3:
             st.metric("Final Results", pipeline_info.get('final_top_k', 0))
+
+
+def create_conversational_chat_interface():
+    """Create dedicated conversational chat interface"""
+    
+    st.subheader("💬 Conversational RAG Chat")
+    
+    # Initialize session state for conversation
+    if 'conversation_history' not in st.session_state:
+        st.session_state.conversation_history = []
+    
+    if 'current_thread_id' not in st.session_state:
+        st.session_state.current_thread_id = "default"
+    
+    # Chat configuration
+    with st.expander("🔧 Chat Configuration", expanded=False):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            thread_id = st.text_input(
+                "Thread ID",
+                value=st.session_state.current_thread_id,
+                help="Unique identifier for this conversation",
+                key="chat_thread_id"
+            )
+            
+            max_messages = st.slider(
+                "Max messages to remember",
+                min_value=4,
+                max_value=20,
+                value=10,
+                help="Maximum number of messages to keep in memory",
+                key="chat_max_messages"
+            )
+            
+            enable_summary = st.checkbox(
+                "Enable summary memory",
+                value=True,
+                help="Use summary for long conversations",
+                key="chat_enable_summary"
+            )
+        
+        with col2:
+            include_web_search = st.checkbox(
+                "Include web search",
+                value=True,
+                help="Add web search results to enhance context",
+                key="chat_include_web"
+            )
+            
+            llm_provider = st.selectbox(
+                "LLM Provider",
+                ["auto", "openai", "gemini", "mock"],
+                help="Choose language model for generation",
+                key="chat_llm_provider"
+            )
+            
+            summary_threshold = st.slider(
+                "Summary threshold",
+                min_value=4,
+                max_value=16,
+                value=8,
+                help="Number of messages before summarizing",
+                key="chat_summary_threshold"
+            )
+    
+    # Update thread ID in session state
+    if thread_id != st.session_state.current_thread_id:
+        st.session_state.current_thread_id = thread_id
+        st.session_state.conversation_history = []
+    
+    # Display conversation history
+    if st.session_state.conversation_history:
+        st.markdown("### 💬 Conversation History")
+        
+        for i, message in enumerate(st.session_state.conversation_history):
+            if message['role'] == 'user':
+                st.markdown(f"**You:** {message['content']}")
+            else:
+                st.markdown(f"**Assistant:** {message['content']}")
+        
+        # Add a divider
+        st.markdown("---")
+    
+    # Chat input
+    message = st.text_area(
+        "Enter your message:",
+        placeholder="Ask a question or continue the conversation...",
+        help="Your message will be processed with conversation context",
+        key="chat_message_input",
+        height=100
+    )
+    
+    # Chat controls
+    col1, col2, col3 = st.columns([1, 1, 2])
+    
+    with col1:
+        send_button = st.button("💬 Send", type="primary", key="chat_send_btn")
+    
+    with col2:
+        clear_button = st.button("🗑️ Clear Chat", key="chat_clear_btn")
+    
+    with col3:
+        show_sources = st.checkbox(
+            "Show sources",
+            value=True,
+            help="Display source documents",
+            key="chat_show_sources"
+        )
+    
+    return {
+        'message': message,
+        'send_button': send_button,
+        'clear_button': clear_button,
+        'thread_id': thread_id,
+        'include_web_search': include_web_search,
+        'show_sources': show_sources,
+        'llm_provider': llm_provider,
+        'max_messages': max_messages,
+        'enable_summary': enable_summary,
+        'summary_threshold': summary_threshold
+    }
+
+
+def display_conversational_response(response: Dict[str, Any], show_sources: bool = True):
+    """Display conversational RAG response with chat context"""
+    
+    if response.get('success', False):
+        # Display the response
+        st.markdown("### 🤖 Assistant Response")
+        st.markdown(response['response'])
+        
+        # Display conversation metadata
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Processing Time", f"{response.get('processing_time', 0):.2f}s")
+        
+        with col2:
+            st.metric("Context Documents", response.get('context_documents', 0))
+        
+        with col3:
+            st.metric("Thread ID", response.get('thread_id', 'N/A'))
+        
+        # Show retrieval stats if available
+        if 'retrieval_stats' in response:
+            with st.expander("📊 Retrieval Statistics"):
+                stats = response['retrieval_stats']
+                
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric("Total Retrieved", stats.get('total_retrieved', 0))
+                
+                with col2:
+                    st.metric("Vector Search", stats.get('vector_search', 0))
+                
+                with col3:
+                    st.metric("Web Search", stats.get('web_search', 0))
+                
+                with col4:
+                    st.metric("Final Context", stats.get('final_context', 0))
+        
+        # Show sources if requested
+        if show_sources and response.get('sources'):
+            with st.expander("📚 Source Documents"):
+                for i, source in enumerate(response['sources'], 1):
+                    # Header with rank and title
+                    rank = source.get('rank', i)
+                    title = source.get('title', 'Unknown')
+                    retrieval_source = source.get('retrieval_source', 'unknown')
+                    
+                    st.markdown(f"### 📄 Source {rank}: {title}")
+                    st.markdown(f"**Source Type:** {retrieval_source.replace('_', ' ').title()}")
+                    
+                    # Metadata in columns
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        if source.get('source') and source['source'] != 'Unknown':
+                            st.markdown(f"**Origin:** {source['source']}")
+                        
+                        if source.get('document_type'):
+                            st.markdown(f"**Type:** {source['document_type']}")
+                        
+                        if source.get('category'):
+                            st.markdown(f"**Category:** {source['category']}")
+                    
+                    with col2:
+                        if source.get('similarity_score') is not None:
+                            st.metric("Similarity Score", f"{source['similarity_score']:.4f}")
+                        
+                        if source.get('rerank_score') is not None:
+                            st.metric("Rerank Score", f"{source['rerank_score']:.4f}")
+                    
+                    with col3:
+                        if source.get('department'):
+                            st.markdown(f"**Department:** {source['department']}")
+                        
+                        if source.get('upload_date'):
+                            st.markdown(f"**Upload Date:** {source['upload_date']}")
+                        
+                        if source.get('version'):
+                            st.markdown(f"**Version:** {source['version']}")
+                    
+                    # Content preview in a scrollable text area
+                    if source.get('content_preview'):
+                        st.markdown("**Content Preview:**")
+                        st.text_area(
+                            label="",
+                            value=source['content_preview'],
+                            height=120,
+                            disabled=True,
+                            key=f"conv_source_content_{rank}_{hash(str(source))}"
+                        )
+                    
+                    # Additional metadata and links
+                    if source.get('url'):
+                        st.link_button("🔗 View Original Source", source['url'], key=f"conv_source_link_{rank}")
+                    
+                    # Chunk information
+                    chunk_info = []
+                    if source.get('chunk_index') is not None:
+                        chunk_info.append(f"Chunk {source['chunk_index']}")
+                    if source.get('total_chunks'):
+                        chunk_info.append(f"of {source['total_chunks']}")
+                    if source.get('chunk_id'):
+                        chunk_info.append(f"(ID: {source['chunk_id']})")
+                    
+                    if chunk_info:
+                        st.caption(" ".join(chunk_info))
+                    
+                    # Add separator between sources (except for the last one)
+                    if i < len(response['sources']):
+                        st.markdown("---")
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Show conversation history if available
+        if 'conversation_history' in response:
+            history = response['conversation_history']
+            if history:
+                with st.expander("💬 Conversation Context"):
+                    for msg in history[-5:]:  # Show last 5 messages
+                        if msg['role'] == 'user':
+                            st.markdown(f"**You:** {msg['content'][:100]}...")
+                        else:
+                            st.markdown(f"**Assistant:** {msg['content'][:100]}...")
+    
+    else:
+        # Display error
+        st.error(f"❌ Error: {response.get('error', 'Unknown error')}")
+        
+        if 'processing_time' in response:
+            st.metric("Processing Time", f"{response['processing_time']:.2f}s")

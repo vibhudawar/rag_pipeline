@@ -38,7 +38,9 @@ from ui.components import (
     display_rag_batch_results,
     create_rag_query_interface,
     create_rag_batch_interface,
-    show_rag_pipeline_status
+    show_rag_pipeline_status,
+    display_conversational_response,
+    create_conversational_chat_interface
 )
 
 from src.ingestion import (
@@ -681,15 +683,19 @@ def rag_query_interface(config: Dict[str, Any]):
         st.warning("⚠️ No documents ingested yet. Please upload some documents first!")
         return
     
-    # Create tabs for single and batch queries
-    single_tab, batch_tab, pipeline_tab = st.tabs([
+    # Create tabs for different query modes
+    single_tab, chat_tab, batch_tab, pipeline_tab = st.tabs([
         "🔍 Single Query",
+        "💬 Conversational Chat",
         "📊 Batch Queries", 
         "⚙️ Pipeline Config"
     ])
     
     with single_tab:
         single_rag_query(config)
+    
+    with chat_tab:
+        conversational_rag_query(config)
     
     with batch_tab:
         batch_rag_query(config)
@@ -705,10 +711,14 @@ def single_rag_query(config: Dict[str, Any]):
     query_config = create_rag_query_interface()
     
     query = query_config['query']
+    enable_conversation = query_config['enable_conversation']
     include_web_search = query_config['include_web_search']
     show_sources = query_config['show_sources']
     reranker_provider = query_config['reranker_provider']
     llm_provider = query_config['llm_provider']
+    max_messages = query_config['max_messages']
+    enable_summary = query_config['enable_summary']
+    summary_threshold = query_config['summary_threshold']
     
     # Query button
     if st.button("🚀 Ask Question", type="primary", key="single_rag_query_btn") and query:
@@ -719,14 +729,20 @@ def single_rag_query(config: Dict[str, Any]):
                     index_name=config['index_name'],
                     include_web_search=include_web_search,
                     reranker_provider=reranker_provider,
-                    llm_provider=llm_provider
+                    llm_provider=llm_provider,
+                    enable_conversation=enable_conversation,
+                    max_conversation_messages=max_messages,
+                    enable_summary=enable_summary,
+                    summary_threshold=summary_threshold
                 )
                 
                 # Process query
-                response = pipeline.query(query, return_sources=show_sources)
-                
-                # Display results
-                display_rag_response(response)
+                if enable_conversation:
+                    response = pipeline.chat(query, thread_id="single_query")
+                    display_conversational_response(response, show_sources)
+                else:
+                    response = pipeline.query(query, return_sources=show_sources)
+                    display_rag_response(response)
                 
         except Exception as e:
             show_error_message(e, "RAG query failed")
@@ -745,6 +761,117 @@ def single_rag_query(config: Dict[str, Any]):
         - How does [specific topic] relate to [another topic]?
         - What are the advantages and disadvantages of [topic]?
         - Can you explain [specific concept] mentioned in the documents?
+        
+        **💬 Conversational Mode:**
+        - Enable "conversation memory" to have multi-turn conversations
+        - Ask follow-up questions like "Can you elaborate on that?"
+        - Reference previous answers: "What did you mean by X in your last response?"
+        """)
+
+
+def conversational_rag_query(config: Dict[str, Any]):
+    """Conversational RAG query interface"""
+    
+    # Create conversational chat interface
+    chat_config = create_conversational_chat_interface()
+    
+    message = chat_config['message']
+    send_button = chat_config['send_button']
+    clear_button = chat_config['clear_button']
+    thread_id = chat_config['thread_id']
+    include_web_search = chat_config['include_web_search']
+    show_sources = chat_config['show_sources']
+    llm_provider = chat_config['llm_provider']
+    max_messages = chat_config['max_messages']
+    enable_summary = chat_config['enable_summary']
+    summary_threshold = chat_config['summary_threshold']
+    
+    # Handle clear conversation
+    if clear_button:
+        try:
+            # Clear session state
+            if 'conversation_history' in st.session_state:
+                st.session_state.conversation_history = []
+            
+            # Clear pipeline conversation
+            pipeline = create_rag_pipeline(
+                index_name=config['index_name'],
+                enable_conversation=True,
+                max_conversation_messages=max_messages,
+                enable_summary=enable_summary,
+                summary_threshold=summary_threshold
+            )
+            pipeline.clear_conversation(thread_id)
+            
+            st.success("💬 Conversation cleared!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Error clearing conversation: {str(e)}")
+    
+    # Handle send message
+    if send_button and message:
+        try:
+            with st.spinner("🤖 Generating response..."):
+                # Create conversational RAG pipeline
+                pipeline = create_rag_pipeline(
+                    index_name=config['index_name'],
+                    include_web_search=include_web_search,
+                    llm_provider=llm_provider,
+                    enable_conversation=True,
+                    max_conversation_messages=max_messages,
+                    enable_summary=enable_summary,
+                    summary_threshold=summary_threshold
+                )
+                
+                # Process message
+                response = pipeline.chat(message, thread_id=thread_id)
+                
+                # Update session state conversation history
+                if 'conversation_history' not in st.session_state:
+                    st.session_state.conversation_history = []
+                
+                # Add messages to session state
+                st.session_state.conversation_history.append({
+                    'role': 'user',
+                    'content': message
+                })
+                
+                if response.get('success', False):
+                    st.session_state.conversation_history.append({
+                        'role': 'assistant',
+                        'content': response['response']
+                    })
+                
+                # Display response
+                display_conversational_response(response, show_sources)
+                
+                # Clear message input
+                st.session_state.chat_message_input = ""
+                
+        except Exception as e:
+            show_error_message(e, "Conversational RAG failed")
+    
+    elif message and not send_button:
+        st.info("👆 Click 'Send' to chat with the assistant")
+    
+    # Conversation tips
+    with st.expander("💡 Conversation Tips"):
+        st.markdown("""
+        **🎯 Getting the most out of conversational RAG:**
+        
+        - Ask follow-up questions to dive deeper into topics
+        - Reference previous responses: "Tell me more about that"
+        - Build on the conversation: "How does this relate to what we discussed?"
+        - Use conversation memory to maintain context across multiple questions
+        
+        **⚙️ Memory Management:**
+        - **Max messages**: Controls how many messages are kept in memory
+        - **Summary memory**: Automatically summarizes long conversations
+        - **Thread ID**: Use different IDs for separate conversation topics
+        
+        **🔄 Starting Fresh:**
+        - Use "Clear Chat" to start a new conversation
+        - Change Thread ID to create parallel conversations
         """)
 
 
@@ -767,7 +894,8 @@ def batch_rag_query(config: Dict[str, Any]):
                 pipeline = create_rag_pipeline(
                     index_name=config['index_name'],
                     include_web_search=include_web_search,
-                    reranker_provider=reranker_provider
+                    reranker_provider=reranker_provider,
+                    enable_conversation=False  # Disable conversation for batch queries
                 )
                 
                 # Process queries
